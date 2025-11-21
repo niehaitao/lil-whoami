@@ -1,0 +1,89 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whoami
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whoami
+  template:
+    metadata:
+      labels:
+        app: whoami
+    spec:
+      initContainers:
+        - name: init
+          image: busybox
+          # command: ['sh', '-c', 'echo Initializing whoami application...; sleep 5']
+          command: ["sh", "-c"]
+          args: [
+              "if [ -z \"$MY_SECRET\" ]; then echo \"FATAL: MY_SECRET is missing\"; exit 1; else echo \"MY_SECRET is $MY_SECRET\"; fi"
+          ]
+          env:
+            - name: MY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: whoami-secret
+                  key: password
+      containers:
+        - name: whoami
+          image: traefik/whoami:v1.11.0
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: "0.2"
+            requests:
+              memory: 256Mi
+              cpu: "0.2"
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 1
+            periodSeconds: 1
+            timeoutSeconds: 1
+            failureThreshold: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami
+  namespace: demo
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: whoami
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: whoami
+  namespace: demo
+spec:
+  parentRefs:
+    - name: traefik-gateway
+      namespace: default
+  hostnames:
+    - "localhost"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /whoami
+      backendRefs:
+        - name: whoami
+          port: 80
