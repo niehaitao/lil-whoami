@@ -1,0 +1,11 @@
+1. Get the application:
+kubectl --namespace {{ .Release.Namespace | default "default" }} port-forward svc/{{ include "whoami.fullname" . | default .Chart.Name }} 8080:80
+then open http://localhost:8080/
+
+
+2. If using your Traefik and path-based ingress, you can curl directly:
+curl http://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+
+
+3. To see release history:
+helm history {{ .Release.Name }} -n {{ .Release.Namespace | default "default" }}
